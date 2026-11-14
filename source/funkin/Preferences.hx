@@ -201,6 +201,94 @@ class Preferences
   }
 
   /**
+   * If disabled, sprites are drawn without smoothing.
+   * @default `true`
+   */
+  public static var antialiasing(get, set):Bool;
+
+  static function get_antialiasing():Bool
+  {
+    return Save?.instance?.options?.antialiasing ?? true;
+  }
+
+  static function set_antialiasing(value:Bool):Bool
+  {
+    var save:Save = Save.instance;
+    save.options.antialiasing = value;
+    Save.system.flush();
+    applyAntialiasing();
+    return value;
+  }
+
+  /**
+   * If enabled, optional visual extras are dropped for performance: shaders, antialiasing and note splashes.
+   * The individual settings are kept, they just don't apply while this is on.
+   * @default `false`
+   */
+  public static var lowQuality(get, set):Bool;
+
+  static function get_lowQuality():Bool
+  {
+    return Save?.instance?.options?.lowQuality ?? false;
+  }
+
+  static function set_lowQuality(value:Bool):Bool
+  {
+    var save:Save = Save.instance;
+    save.options.lowQuality = value;
+    Save.system.flush();
+    applyAntialiasing();
+    return value;
+  }
+
+  /**
+   * If disabled, the CPU copy of a texture is freed once it has been uploaded to the GPU (saves RAM).
+   * @default `true`
+   */
+  public static var cpuCaching(get, set):Bool;
+
+  static function get_cpuCaching():Bool
+  {
+    return Save?.instance?.options?.cpuCaching ?? true;
+  }
+
+  static function set_cpuCaching(value:Bool):Bool
+  {
+    var save:Save = Save.instance;
+    save.options.cpuCaching = value;
+    Save.system.flush();
+    return value;
+  }
+
+  /**
+   * Whether shaders are really applied: the setting, unless Low Quality is on.
+   */
+  public static var useShaders(get, never):Bool;
+
+  static function get_useShaders():Bool
+  {
+    return shaders && !lowQuality;
+  }
+
+  /**
+   * Whether sprites are really smoothed: the setting, unless Low Quality is on.
+   */
+  public static var useAntialiasing(get, never):Bool;
+
+  static function get_useAntialiasing():Bool
+  {
+    return antialiasing && !lowQuality;
+  }
+
+  /**
+   * Makes sprites created from now on follow the antialiasing setting. Already existing ones are covered when they are drawn.
+   */
+  public static function applyAntialiasing():Void
+  {
+    flixel.FlxSprite.defaultAntialiasing = useAntialiasing;
+  }
+
+  /**
    * If enabled, an FPS and memory counter will be displayed even if this is not a debug build.
    * Always disabled on release mobile builds.
    * @default `Off`

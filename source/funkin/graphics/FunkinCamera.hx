@@ -144,7 +144,7 @@ class FunkinCamera extends FlxCamera
    */
   static function filterCosmeticShader(shader:Null<FlxShader>):Null<FlxShader>
   {
-    if (shader == null || Preferences.shaders) return shader;
+    if (shader == null || Preferences.useShaders) return shader;
 
     if (Std.isOfType(shader, DropShadowShader)
       || Std.isOfType(shader, AdjustColorShader)
@@ -198,7 +198,7 @@ class FunkinCamera extends FlxCamera
     var original:Null<Array<BitmapFilter>> = filters;
 
     // Post-processing filters are expensive; skip the cosmetic ones when Shaders is off.
-    if (original != null && original.length > 0 && !Preferences.shaders) filters = getVisibleFilters(original);
+    if (original != null && original.length > 0 && !Preferences.useShaders) filters = getVisibleFilters(original);
 
     super.render();
 
@@ -209,6 +209,7 @@ class FunkinCamera extends FlxCamera
       ?shader:FlxShader):Void
   {
     shader = filterCosmeticShader(shader);
+    if (!Preferences.useAntialiasing) smoothing = false;
 
     var shouldUseShader:Bool = (!hasKhronosExtension && KHR_BLEND_MODES.contains(blend)) || SHADER_REQUIRED_BLEND_MODES.contains(blend);
 

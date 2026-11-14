@@ -72,6 +72,7 @@ class OptionsState extends MusicBeatState
 
     var options:OptionsMenu = optionsCodex.addPage(Options, new OptionsMenu());
     var preferences:PreferencesMenu = optionsCodex.addPage(Preferences, new PreferencesMenu());
+    var graphics:GraphicsMenu = optionsCodex.addPage(Graphics, new GraphicsMenu());
     var controls:ControlsMenu = optionsCodex.addPage(Controls, new ControlsMenu());
     #if FEATURE_LAG_ADJUSTMENT
     var offsets:OffsetMenu = optionsCodex.addPage(Offsets, new OffsetMenu());
@@ -86,6 +87,7 @@ class OptionsState extends MusicBeatState
       options.onExit.add(exitToMainMenu);
       controls.onExit.add(exitControls);
       preferences.onExit.add(optionsCodex.switchPage.bind(Options));
+      graphics.onExit.add(optionsCodex.switchPage.bind(Options));
       #if FEATURE_LAG_ADJUSTMENT
       offsets.onExit.add(exitOffsets);
       #end
@@ -179,6 +181,7 @@ class OptionsMenu extends Page<OptionsMenuPageName>
     #end
 
     createItem('PREFERENCES', function() codex.switchPage(Preferences));
+    createItem('GRAPHICS', function() codex.switchPage(Graphics));
     #if FEATURE_DEBUG_MENU
     // Debug Mode: opens the debug menu (Chart Editor, Animation Editor, Stage Editor, etc.).
     // Required on mobile, where there is no keyboard key to open it from the main menu.
@@ -393,6 +396,7 @@ enum abstract OptionsMenuPageName(String) to PageName
   public var Colors = 'colors';
   public var Mods = 'mods';
   public var Preferences = 'preferences';
+  public var Graphics = 'graphics';
   public var Offsets = 'offsets';
   public var SaveData = 'saveData';
 }

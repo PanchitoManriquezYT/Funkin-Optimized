@@ -147,7 +147,7 @@ class InitState extends FlxState
       SongEventHelper.generateEaseGraphsBitmaps();
 
       // This ain't a pixel art game! (most of the time)
-      FlxSprite.defaultAntialiasing = true;
+      Preferences.applyAntialiasing();
 
       // Disable default keybinds for volume (we manually control volume in MusicBeatState with custom binds)
       FlxG.sound.volumeUpKeys = [];

@@ -498,14 +498,6 @@ class Project extends HXProject
   static final FEATURE_TOUCH_CONTROLS:FeatureFlag = "FEATURE_TOUCH_CONTROLS";
 
   /**
-   * `-DFEATURE_DISPOSE_CPU_IMAGES`
-   * If this flag is enabled (mobile only), the CPU-side pixel copy of temporary textures is freed once the texture
-   * has been uploaded to the GPU. Saves a lot of RAM on low-end devices, but those textures can't be read from code
-   * anymore and can't be re-uploaded if the GPU context is lost. Disabled by default, test it on your devices first.
-   */
-  static final FEATURE_DISPOSE_CPU_IMAGES:FeatureFlag = "FEATURE_DISPOSE_CPU_IMAGES";
-
-  /**
    * `-DFEATURE_ONLINE`
    * If this flag is enabled, the online multiplayer mode (direct host/join over TCP) is compiled in.
    * Requires `sys.net` sockets, so it is disabled on web builds.
@@ -926,9 +918,6 @@ class Project extends HXProject
 
     // Should be true except on web builds (web has no raw TCP sockets).
     FEATURE_ONLINE.apply(this, !isWeb());
-
-    // Opt-in, see the flag's documentation for the trade-offs.
-    FEATURE_DISPOSE_CPU_IMAGES.apply(this, false);
 
     // Should be true only on mobile release builds. Remember you can add the flag manually for testing.
     FEATURE_MOBILE_ADVERTISEMENTS.apply(this, (isMobile() && isRelease()) && envConfig != null);

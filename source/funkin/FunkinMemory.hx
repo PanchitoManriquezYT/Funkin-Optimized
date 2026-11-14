@@ -154,17 +154,18 @@ class FunkinMemory
    * A decoded RGBA image costs `width * height * 4` bytes of RAM on top of the GPU copy, which is a lot for the big
    * character/stage atlases.
    *
-   * Only compiled in with `-DFEATURE_DISPOSE_CPU_IMAGES`, because it has trade-offs:
+   * Only done when "CPU Caching" is turned off in Options > Graphics, because it has trade-offs:
    * - the graphic can no longer be read from code (`getPixel`, pixel-perfect overlap checks, software `draw()`),
    * - if the GPU context is ever lost (some devices after backgrounding the app), the texture can't be re-uploaded.
    * That's why it is only applied to temporary (per-song/per-state) textures, never to the permanent UI cache, and
-   * why it is off by default. Test it on your target devices before shipping it.
+   * why it is off by default.
    *
    * @param graphic The graphic to trim.
    */
   static function releaseCpuCopy(graphic:FlxGraphic):Void
   {
-    #if (FEATURE_DISPOSE_CPU_IMAGES && mobile)
+    #if (sys && !web)
+    if (Preferences.cpuCaching) return;
     if (graphic == null || graphic.bitmap == null) return;
     if (graphic.key != null && graphic.key.contains('fonts')) return;
 

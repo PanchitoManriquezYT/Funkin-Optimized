@@ -103,6 +103,9 @@ class Save implements ConsoleClass
         flashingLights: true,
         zoomCamera: true,
         shaders: true,
+        antialiasing: true,
+        lowQuality: false,
+        cpuCaching: true,
         debugDisplay: 'Off',
         debugDisplayBGOpacity: 50,
         subtitles: true,
@@ -1140,6 +1143,24 @@ typedef SaveDataOptions =
    * @default `true`
    */
   var shaders:Bool;
+
+  /**
+   * If disabled, sprites are drawn without smoothing (sharper and faster on weak GPUs).
+   * @default `true`
+   */
+  var antialiasing:Bool;
+
+  /**
+   * If enabled, the game drops optional visual extras (shaders, antialiasing, note splashes) to run faster.
+   * @default `false`
+   */
+  var lowQuality:Bool;
+
+  /**
+   * If disabled, textures are not kept in CPU memory once they are on the GPU. Saves RAM, but it is riskier.
+   * @default `true`
+   */
+  var cpuCaching:Bool;
 
   /**
    * If enabled, an FPS and memory counter will be displayed even if this is not a debug build.
