@@ -28,6 +28,11 @@ typedef PsychImportResult =
   var difficulty:String;
 
   /**
+   * Which Psych Engine generation the chart was written by: `0.6` (and older), `0.7` or `1.0`.
+   */
+  var sourceFormat:String;
+
+  /**
    * Names of Psych events that have no V-Slice equivalent and were left out (each name once).
    */
   var skippedEvents:Array<String>;
@@ -91,7 +96,7 @@ class PsychEngineImporter
     var root:Null<Dynamic> = null;
     try
     {
-      root = haxe.Json.parse(content);
+      root = haxe.Json.parse(cleanJson(content));
     }
     catch (e:Dynamic)
     {
@@ -171,21 +176,7 @@ class PsychEngineImporter
     notes.sort((a, b) -> a.time < b.time ? -1 : (a.time > b.time ? 1 : 0));
 
     // Events stored in the song (Psych 0.4 and later).
-    for (entry in array(song.events))
-    {
-      var group:Array<Dynamic> = array(entry);
-      if (group.length < 2) continue;
-      var time:Null<Float> = num(group[0]);
-      if (time == null) continue;
-
-      for (rawEvent in array(group[1]))
-      {
-        var event:Array<Dynamic> = array(rawEvent);
-        if (event.length < 1) continue;
-        addPsychEvent(time, str(event[0]) ?? '', stringify(event.length > 1 ? event[1] : ''), stringify(event.length > 2 ? event[2] : ''), events,
-          skippedEvents, timeChanges);
-      }
-    }
+    readSongEvents(song, events, skippedEvents, timeChanges);
 
     // Camera focus follows who is singing, like Psych's own camera does.
     addCameraEvents(sections, sectionStarts, notes, events);
@@ -207,6 +198,7 @@ class PsychEngineImporter
       metadata: metadata,
       chart: chart,
       difficulty: difficulty,
+      sourceFormat: detectFormat(root, song, sections),
       skippedEvents: skippedEvents,
       skippedNoteTypes: skippedTypes
     };
@@ -230,6 +222,99 @@ class PsychEngineImporter
     if (Std.isOfType(Reflect.field(root, 'notes'), Array)) return root;
 
     return null;
+  }
+
+
+  /**
+   * Psych 0.6 and 0.7 keep the events of a song in a separate `events.json` next to the charts. Read them so they can
+   * be added to a chart.
+   * @param timeChanges The BPM changes of the chart the events go with (durations depend on the BPM).
+   * @return The events and the names of the ones that have no V-Slice equivalent, or `null` if it isn't a Psych file.
+   */
+  public static function importEventsFile(content:String, timeChanges:Array<SongTimeChange>):Null<{events:Array<SongEventData>, skipped:Array<String>}>
+  {
+    var root:Null<Dynamic> = null;
+    try
+    {
+      root = haxe.Json.parse(cleanJson(content));
+    }
+    catch (e:Dynamic)
+    {
+      return null;
+    }
+
+    var song:Null<Dynamic> = songObject(root);
+    if (song == null) return null;
+
+    var events:Array<SongEventData> = [];
+    var skipped:Array<String> = [];
+    readSongEvents(song, events, skipped, timeChanges);
+
+    // Very old files keep events as notes of a negative lane.
+    for (section in array(song.notes))
+    {
+      for (raw in array(section.sectionNotes))
+      {
+        var note:Array<Dynamic> = array(raw);
+        var time:Null<Float> = note.length > 1 ? num(note[0]) : null;
+        var lane:Null<Float> = note.length > 1 ? num(note[1]) : null;
+        if (time != null && lane != null && lane < 0) readEventNote(note, time, events, skipped, timeChanges);
+      }
+    }
+
+    events.sort((a, b) -> a.time < b.time ? -1 : (a.time > b.time ? 1 : 0));
+    return {events: events, skipped: skipped};
+  }
+
+  static function readSongEvents(song:Dynamic, events:Array<SongEventData>, skippedEvents:Array<String>, timeChanges:Array<SongTimeChange>):Void
+  {
+    for (entry in array(song.events))
+    {
+      var group:Array<Dynamic> = array(entry);
+      if (group.length < 2) continue;
+      var time:Null<Float> = num(group[0]);
+      if (time == null) continue;
+
+      for (rawEvent in array(group[1]))
+      {
+        var event:Array<Dynamic> = array(rawEvent);
+        if (event.length < 1) continue;
+        addPsychEvent(time, str(event[0]) ?? '', stringify(event.length > 1 ? event[1] : ''), stringify(event.length > 2 ? event[2] : ''), events,
+          skippedEvents, timeChanges);
+      }
+    }
+  }
+
+  /**
+   * Which generation of Psych wrote this chart.
+   * - `1.0`: `"format": "psych_v1"`, or everything at the root with no `song` wrapper.
+   * - `0.7`: sections with `sectionBeats` (and `gfSection`).
+   * - `0.6`: sections with `lengthInSteps`, or anything older.
+   */
+  static function detectFormat(root:Null<Dynamic>, song:Dynamic, sections:Array<Dynamic>):String
+  {
+    var format:Null<String> = str(Reflect.field(root, 'format')) ?? str(Reflect.field(song, 'format'));
+    if (format != null && StringTools.startsWith(format, 'psych_v')) return '1.0';
+    if (song == root) return '1.0';
+
+    for (section in sections)
+    {
+      if (Reflect.hasField(section, 'sectionBeats')) return '0.7';
+    }
+    return '0.6';
+  }
+
+  /**
+   * Psych reads charts leniently, so do the same: drop a byte order mark and whatever is after the last `}`
+   * (0.6 charts saved by some tools end in padding or null characters).
+   */
+  static function cleanJson(content:String):String
+  {
+    var text:String = content;
+    if (text.length > 0 && text.charCodeAt(0) == 0xFEFF) text = text.substr(1);
+    var end:Int = text.lastIndexOf('}');
+    if (end >= 0 && end < text.length - 1) text = text.substr(0, end + 1);
+    return StringTools.trim(text);
   }
 
   /**

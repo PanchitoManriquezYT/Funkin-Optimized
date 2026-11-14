@@ -6663,8 +6663,15 @@ class ChartEditorState extends UIState // UIState derives from MusicBeatState
     }
     Paths.setCurrentLevel(PlayStatePlaylist.campaignId);
 
-    subStateClosed.add(reviveUICamera);
-    subStateClosed.add(resetConductorAfterTest);
+    // One-shot: these used to stay registered after the playtest and ran again on any later substate close,
+    // resetting the cameras (and destroying the live UI camera) at the wrong moment.
+    subStateClosed.addOnce(reviveUICamera);
+    subStateClosed.addOnce(resetConductorAfterTest);
+
+    #if mobile
+    // The playtest loads a whole stage and the characters while the editor is still in memory: collect what's garbage first.
+    funkin.mobile.util.PerformanceProfile.collectBeforeGameplay();
+    #end
 
     FlxTransitionableState.skipNextTransIn = false;
     FlxTransitionableState.skipNextTransOut = false;
@@ -6800,11 +6807,15 @@ class ChartEditorState extends UIState // UIState derives from MusicBeatState
    */
   function reviveUICamera(?_:FlxSubState):Void
   {
-    uiCamera.revive();
-    FlxG.cameras.reset(uiCamera);
+    // `cameras.reset` destroys every camera first, including this one if it's already in the list.
+    if (!FlxG.cameras.list.contains(uiCamera))
+    {
+      uiCamera.revive();
+      FlxG.cameras.reset(uiCamera);
+    }
     uiCamera.onResize();
 
-    add(this.root);
+    if (!members.contains(this.root)) add(this.root);
   }
 
   /**
@@ -7483,13 +7494,26 @@ class ChartEditorState extends UIState // UIState derives from MusicBeatState
       // Prevent the time from skipping back to 0 when the song ends.
       audioInstTrack.onComplete = function()
       {
-        if (audioInstTrack != null)
+        // This is called by the audio system itself: don't touch the sounds from inside it. Do it next frame, and
+        // never seek to the exact end (that is out of range for some backends, and it killed the app on phones).
+        haxe.ui.Toolkit.callLater(function()
         {
-          audioInstTrack.pause();
-          // Keep the track at the end.
-          audioInstTrack.time = audioInstTrack.length;
-        }
-        audioVocalTrackGroup.pause();
+          try
+          {
+            if (audioInstTrack != null && audioInstTrack.exists)
+            {
+              audioInstTrack.pause();
+              // Keep the track at the end.
+              audioInstTrack.time = Math.max(0, audioInstTrack.length - 50);
+            }
+            if (audioVocalTrackGroup != null) audioVocalTrackGroup.pause();
+            playbarPlay.text = '>';
+          }
+          catch (e:Dynamic)
+          {
+            trace('[ChartEditor] Could not stop the audio at the end of the song: $e');
+          }
+        });
       };
       audioInstTrack.volume = instTargetVolume;
       #if FLX_PITCH
@@ -7597,7 +7621,11 @@ class ChartEditorState extends UIState // UIState derives from MusicBeatState
 
     // Stop the music.
     if (welcomeMusic != null) welcomeMusic.destroy();
-    if (audioInstTrack != null) audioInstTrack.destroy();
+    if (audioInstTrack != null)
+    {
+      if (FlxG.sound.music == audioInstTrack) FlxG.sound.music = null;
+      audioInstTrack.destroy();
+    }
     if (audioVocalTrackGroup != null) audioVocalTrackGroup.destroy();
 
     // Reset the sounds used by some playables.
@@ -7655,6 +7683,8 @@ class ChartEditorState extends UIState // UIState derives from MusicBeatState
     // Stop and release the audio, the largest thing held in memory.
     if (audioInstTrack != null)
     {
+      // After a playtest the instrumental is also `FlxG.sound.music`: don't leave a destroyed sound there.
+      if (FlxG.sound.music == audioInstTrack) FlxG.sound.music = null;
       audioInstTrack.stop();
       audioInstTrack.destroy();
       audioInstTrack = null;

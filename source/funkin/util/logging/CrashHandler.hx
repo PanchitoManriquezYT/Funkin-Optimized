@@ -120,9 +120,18 @@ class CrashHandler
 
   static function logErrorMessage(message:String, critical:Bool = false):Void
   {
-    FileUtil.createDirIfNotExists(LOG_FOLDER);
+    var folder:String = LOG_FOLDER;
+    #if mobile
+    // The working directory of a phone app is not writable: use the app's own storage, so the log really exists.
+    try
+    {
+      folder = haxe.io.Path.join([lime.system.System.applicationStorageDirectory, LOG_FOLDER]);
+    }
+    catch (e:Dynamic) {}
+    #end
+    FileUtil.createDirIfNotExists(folder);
 
-    sys.io.File.saveContent('$LOG_FOLDER/crash${critical ? '-critical' : ''}-${DateUtil.generateTimestamp()}.log', buildCrashReport(message));
+    sys.io.File.saveContent('$folder/crash${critical ? '-critical' : ''}-${DateUtil.generateTimestamp()}.log', buildCrashReport(message));
   }
   #end
 

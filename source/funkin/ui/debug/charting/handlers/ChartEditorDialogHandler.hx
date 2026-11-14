@@ -1260,7 +1260,7 @@ class ChartEditorDialogHandler
           songMetadata = psychResult.metadata;
           songChartData = psychResult.chart;
 
-          loadedText = 'Loaded Psych Engine chart as "${psychResult.difficulty}"';
+          loadedText = 'Loaded Psych Engine ${psychResult.sourceFormat} chart as "${psychResult.difficulty}"';
           var skippedNotes:String = psychResult.skippedNoteTypes > 0 ? '\n${psychResult.skippedNoteTypes} notes with special types were imported as normal notes.' : '';
           var skippedEvents:String = psychResult.skippedEvents.length > 0 ? '\nEvents left out (no V-Slice equivalent): ${psychResult.skippedEvents.join(', ')}.' : '';
           loadedText += skippedNotes + skippedEvents;

@@ -96,4 +96,6 @@ V-Slice sigue funcionando igual; los charts de Psych se **añaden** a los de V-S
 
 2. Abre el juego. Las canciones se convierten solas (a un mod generado en `mods/psych-songs`) y aparecen en **Freeplay** y en el lobby del **modo online**. Solo se reconvierten si cambias algo.
 
+Compatible con Psych Engine **0.6.3, 0.7.3 y 1.0.4** (y versiones intermedias): lee `lengthInSteps` (0.6) y `sectionBeats` (0.7+), el `events.json` de 0.6/0.7, el formato `psych_v1` de 1.0, y las voces `Voices-Player.ogg` / `Voices-Opponent.ogg`. También sirve la estructura de un mod de Psych: copia sus carpetas `data` y `songs` dentro de una carpeta de `psych-songs`.
+
 Los eventos y tipos de nota que V-Slice no tiene se ignoran (se tocan como notas normales). También puedes importar un chart suelto desde el Chart Editor.
