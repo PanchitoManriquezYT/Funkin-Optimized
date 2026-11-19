@@ -122,9 +122,16 @@ jobs:
         shell: bash
         run: haxelib install hmm --quiet
 
+      # Downloads from haxelib/GitHub sometimes fail for a moment (SSL errors, half-cloned repos): try a few times.
       - name: Install dependencies
         shell: bash
-        run: haxelib run hmm install
+        run: |
+          for attempt in 1 2 3; do
+            if haxelib run hmm install; then exit 0; fi
+            echo "::warning::haxelib install failed (attempt $attempt of 3), retrying..."
+            sleep $((attempt * 20))
+          done
+          exit 1
 
       # hmm clones Lime without its submodules (SDL, OpenAL, dr_libs...), and `lime rebuild` fails
       # with "dr_flac.h: No such file or directory" without them.
@@ -276,9 +283,16 @@ jobs:
         shell: bash
         run: haxelib install hmm --quiet
 
+      # Downloads from haxelib/GitHub sometimes fail for a moment (SSL errors, half-cloned repos): try a few times.
       - name: Install dependencies
         shell: bash
-        run: haxelib run hmm install
+        run: |
+          for attempt in 1 2 3; do
+            if haxelib run hmm install; then exit 0; fi
+            echo "::warning::haxelib install failed (attempt $attempt of 3), retrying..."
+            sleep $((attempt * 20))
+          done
+          exit 1
 
       # hmm clones Lime without its submodules, `lime rebuild` needs them (SDL, OpenAL, dr_libs...).
       - name: Fetch Lime native submodules
