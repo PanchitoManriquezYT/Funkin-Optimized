@@ -153,6 +153,8 @@ jobs:
 
       - name: Rebuild Lime
         shell: bash
+        env:
+          HXCPP_CXX_STANDARD: 20
         run: haxelib run lime rebuild cpp
 
       - name: Setup Lime Android
@@ -315,6 +317,8 @@ jobs:
 
       - name: Rebuild Lime
         shell: bash
+        env:
+          HXCPP_CXX_STANDARD: 20
         run: haxelib run lime rebuild windows
 
       - name: Build Windows
