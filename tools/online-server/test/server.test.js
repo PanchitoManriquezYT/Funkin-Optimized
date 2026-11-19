@@ -146,6 +146,18 @@ test('gameplay messages are relayed to the other player only, and stamped with t
     guest.close();
   }));
 
+test('only the host can start the match', () =>
+  withServer(async (port) => {
+    const { host, guest } = await makeRoom(port);
+    guest.send({ t: 'start', song: 'bopeebo' });
+    assert.equal((await guest.next()).code, 'not_host');
+    await host.expectSilence(); // nothing reached the host
+    host.send({ t: 'start', song: 'bopeebo' });
+    assert.deepEqual(await guest.next(), { t: 'start', song: 'bopeebo', from: 0 });
+    host.close();
+    guest.close();
+  }));
+
 test('profile changes are sanitized and relayed', () =>
   withServer(async (port) => {
     const { host, guest } = await makeRoom(port);

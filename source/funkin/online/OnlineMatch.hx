@@ -84,6 +84,11 @@ class OnlineMatch
    */
   public static inline var MAX_HOLD_MS:Float = 1500.0;
 
+  /**
+   * The most remote events kept waiting; older ones are dropped beyond this.
+   */
+  static inline var MAX_QUEUED_EVENTS:Int = 4096;
+
   public final songId:String;
   public final difficulty:String;
   public final variation:String;
@@ -336,6 +341,9 @@ class OnlineMatch
     while (index > 0 && queue[index - 1].time > event.time)
       index--;
     queue.insert(index, event);
+
+    // Nothing drains while the game is paused, and a modified client could keep sending: never grow without limit.
+    if (queue.length > MAX_QUEUED_EVENTS) queue.shift();
   }
 
   /**

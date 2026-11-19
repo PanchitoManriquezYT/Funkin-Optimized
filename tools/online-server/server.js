@@ -23,6 +23,7 @@ const ws = require('./websocket');
 const PROTOCOL_VERSION = 1;
 const DEFAULT_PORT = 7777;
 const MAX_LINE_BYTES = 4096; // a single message may not be bigger than this
+const MAX_PENDING_WRITE_BYTES = 1024 * 1024; // unsent data allowed per client
 const MAX_NAME_LENGTH = 20;
 const MAX_ID_LENGTH = 48; // character ids
 const CODE_LENGTH = 5;
@@ -87,6 +88,11 @@ function createRelayServer(options = {}) {
 
   function send(client, message) {
     if (client.socket.destroyed || !client.socket.writable) return;
+    // A client that doesn't read what we send would make the buffer grow without limit: drop it.
+    if (client.socket.writableLength > MAX_PENDING_WRITE_BYTES) {
+      client.socket.destroy();
+      return;
+    }
     const text = JSON.stringify(message);
     client.socket.write(client.webSocket ? ws.encodeFrame(ws.OP_TEXT, text) : text + '\n');
   }
@@ -178,6 +184,11 @@ function createRelayServer(options = {}) {
       client.char = sanitizeText(msg.char, MAX_ID_LENGTH, client.char);
       msg.name = client.name;
       msg.char = client.char;
+    }
+
+    // Only the host decides when the match starts.
+    if (msg.t === 'start' && client.slot !== 0) {
+      return sendError(client, 'not_host', 'Only the host can start the match.');
     }
 
     // The sender can't fake who it is.
