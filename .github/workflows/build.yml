@@ -168,6 +168,8 @@ jobs:
 
       - name: Rebuild Lime Android
         shell: bash
+        env:
+          HXCPP_CXX_STANDARD: 20
         run: haxelib run lime rebuild android -armv7 -arm64
 
       - name: Build Android (${{ matrix.name }})
