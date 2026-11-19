@@ -129,6 +129,8 @@ jobs:
           for attempt in 1 2 3; do
             if haxelib run hmm install; then exit 0; fi
             echo "::warning::haxelib install failed (attempt $attempt of 3), retrying..."
+            # A half-made local repository hides the global hmm, so start the next attempt clean.
+            rm -rf .haxelib
             sleep $((attempt * 20))
           done
           exit 1
@@ -290,6 +292,8 @@ jobs:
           for attempt in 1 2 3; do
             if haxelib run hmm install; then exit 0; fi
             echo "::warning::haxelib install failed (attempt $attempt of 3), retrying..."
+            # A half-made local repository hides the global hmm, so start the next attempt clean.
+            rm -rf .haxelib
             sleep $((attempt * 20))
           done
           exit 1
