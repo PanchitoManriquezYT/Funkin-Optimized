@@ -4,7 +4,7 @@ package funkin.ui.debug.charting.handlers;
 import flixel.util.FlxTimer;
 import funkin.data.song.importer.FNFLegacyData;
 import funkin.data.song.importer.FNFLegacyImporter;
-import funkin.data.song.importer.PsychEngineImporter;
+import funkin.data.song.importer.FnfEngineImporter;
 import funkin.data.song.importer.OsuManiaData;
 import funkin.data.song.importer.OsuManiaImporter;
 import funkin.data.song.importer.StepManiaData;
@@ -1146,8 +1146,8 @@ class ChartEditorDialogHandler
     {
       case 'legacy':
         'FNF Legacy';
-      case 'psych':
-        'Psych Engine';
+      case 'engines':
+        'FNF Engines';
       case 'stepmania':
         'StepMania';
       case 'osumania':
@@ -1158,7 +1158,7 @@ class ChartEditorDialogHandler
 
     var fileFilter = switch (format)
     {
-      case 'legacy' | 'psych':
+      case 'legacy' | 'engines':
         [FileUtil.FILE_FILTER_JSON];
       case 'stepmania':
         [FileUtil.FILE_FILTER_SM];
@@ -1247,22 +1247,31 @@ class ChartEditorDialogHandler
           songChartData = FNFLegacyImporter.migrateChartData(fnfLegacyData);
 
           loadedText = 'Loaded chart file';
-        case 'psych':
-          var psychResult:Null<PsychImportResult> = PsychEngineImporter.importChart(content, path.toString());
+        case 'engines':
+          // Codename Engine keeps the BPM and difficulties in a `meta.json`, next to the chart or one folder up (`charts/`).
+          var metaText:Null<String> = null;
+          #if sys
+          for (candidate in [Path.join([path.dir ?? '', 'meta.json']), Path.join([Path.directory(path.dir ?? ''), 'meta.json'])])
+          {
+            if (metaText == null && sys.FileSystem.exists(candidate)) metaText = sys.io.File.getContent(candidate);
+          }
+          #end
 
-          if (psychResult == null)
+          var engineResult:Null<EngineImportResult> = FnfEngineImporter.importChart(content, path.toString(), metaText);
+
+          if (engineResult == null)
           {
             state.error('Failure',
-              'This does not look like a Psych Engine chart (${path.file}.${path.ext}).\nPick the song\'s .json chart, not events.json or a character file.');
+              'This does not look like a chart from a supported engine (${path.file}.${path.ext}).\nSupported: Psych Engine (0.6.3, 0.7.3, 1.0.4), P-Slice, Kade Engine and Codename Engine. Pick the song\'s .json chart, not events.json or a character file.');
             return;
           }
 
-          songMetadata = psychResult.metadata;
-          songChartData = psychResult.chart;
+          songMetadata = engineResult.metadata;
+          songChartData = engineResult.chart;
 
-          loadedText = 'Loaded Psych Engine ${psychResult.sourceFormat} chart as "${psychResult.difficulty}"';
-          var skippedNotes:String = psychResult.skippedNoteTypes > 0 ? '\n${psychResult.skippedNoteTypes} notes with special types were imported as normal notes.' : '';
-          var skippedEvents:String = psychResult.skippedEvents.length > 0 ? '\nEvents left out (no V-Slice equivalent): ${psychResult.skippedEvents.join(', ')}.' : '';
+          loadedText = 'Loaded ${engineResult.sourceFormat} chart as "${engineResult.difficulty}"';
+          var skippedNotes:String = engineResult.skippedNoteTypes > 0 ? '\n${engineResult.skippedNoteTypes} notes with special types were imported as normal notes.' : '';
+          var skippedEvents:String = engineResult.skippedEvents.length > 0 ? '\nEvents left out (no V-Slice equivalent): ${engineResult.skippedEvents.join(', ')}.' : '';
           loadedText += skippedNotes + skippedEvents;
         case 'stepmania':
           var stepmaniaData:Null<StepManiaData> = StepManiaImporter.parseStepManiaFile(content);

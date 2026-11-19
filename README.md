@@ -81,21 +81,24 @@ And that's it.
 
 [P.S.: This only works with the Wi-Fi IP address when you're online.]
 
-## ¿Cómo jugar charts de Psych Engine?
+## FNF Engines: jugar charts de otros engines
 
-V-Slice sigue funcionando igual; los charts de Psych se **añaden** a los de V-Slice.
+V-Slice sigue funcionando igual; los charts de otros engines se **añaden** a los de V-Slice. Compatible con **Psych Engine 0.6.3, 0.7.3 y 1.0.4, P-Slice, Kade Engine y Codename Engine** (basado en [ChartConverter](https://github.com/panchitomanriquezxdxd/ChartConverter)).
 
-1. Junto a la carpeta `mods` crea la carpeta `psych-songs` y, dentro, una carpeta por canción:
+1. Junto a la carpeta `mods` crea la carpeta `fnf-engines` y, dentro, una carpeta por canción:
 
    ```
-   psych-songs/Mi Cancion/mi-cancion.json        (chart, cualquier versión de Psych)
-   psych-songs/Mi Cancion/mi-cancion-hard.json   (otras dificultades: -easy, -hard)
-   psych-songs/Mi Cancion/Inst.ogg
-   psych-songs/Mi Cancion/Voices.ogg             (opcional)
+   fnf-engines/Mi Cancion/mi-cancion.json        (chart; otras dificultades: mi-cancion-easy.json, -hard.json)
+   fnf-engines/Mi Cancion/Inst.ogg
+   fnf-engines/Mi Cancion/Voices.ogg             (opcional; también Voices-Player.ogg / Voices-Opponent.ogg)
+   fnf-engines/Mi Cancion/events.json            (opcional, Psych 0.6 / 0.7)
    ```
 
-2. Abre el juego. Las canciones se convierten solas (a un mod generado en `mods/psych-songs`) y aparecen en **Freeplay** y en el lobby del **modo online**. Solo se reconvierten si cambias algo.
+   - **Codename Engine:** copia la carpeta de la canción tal cual (`charts/<dificultad>.json`, `meta.json`, `song/Inst.ogg`).
+   - **Mod de Psych Engine:** copia sus carpetas `data` y `songs` dentro de una carpeta de `fnf-engines`.
 
-Compatible con Psych Engine **0.6.3, 0.7.3 y 1.0.4** (y versiones intermedias): lee `lengthInSteps` (0.6) y `sectionBeats` (0.7+), el `events.json` de 0.6/0.7, el formato `psych_v1` de 1.0, y las voces `Voices-Player.ogg` / `Voices-Opponent.ogg`. También sirve la estructura de un mod de Psych: copia sus carpetas `data` y `songs` dentro de una carpeta de `psych-songs`.
+2. Abre el juego. Las canciones se convierten solas (a un mod generado en `mods/fnf-engines`) y aparecen en **Freeplay** y en el lobby del **modo online**. Solo se reconvierten si cambias algo.
 
-Los eventos y tipos de nota que V-Slice no tiene se ignoran (se tocan como notas normales). También puedes importar un chart suelto desde el Chart Editor.
+También puedes importar un chart suelto desde el Chart Editor (*Import Chart → FNF Engines*).
+
+Notas: los carriles de `psych_v1` (Psych 1.0 / P-Slice) son absolutos; los de Psych 0.6 / 0.7 y Kade son relativos a `mustHitSection`, y se detecta solo. Los eventos de cámara y zoom se convierten; los eventos y tipos de nota sin equivalente en V-Slice se omiten (los tipos de nota se tocan como notas normales).

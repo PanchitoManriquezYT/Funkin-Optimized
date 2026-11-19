@@ -3,7 +3,7 @@ package funkin.data.song.importer;
 #if sys
 import funkin.data.song.SongData.SongChartData;
 import funkin.data.song.SongData.SongMetadata;
-import funkin.data.song.importer.PsychEngineImporter.PsychImportResult;
+import funkin.data.song.importer.FnfEngineImporter.EngineImportResult;
 import haxe.io.Path;
 import sys.FileSystem;
 import sys.io.File;
@@ -11,35 +11,42 @@ import sys.io.File;
 /**
  * One song found in `psych-songs/`.
  */
-typedef PsychSongSource =
+typedef EngineSongSource =
 {
   var id:String;
   var name:String;
   var dir:String;
   var charts:Array<String>;
   var audioDirs:Array<String>;
+
+  /**
+   * Codename Engine's `meta.json`, if the song has one.
+   */
+  var meta:Null<String>;
 }
 
 /**
- * Lets Psych Engine songs be played as they are, next to the V-Slice ones (nothing of V-Slice is replaced).
+ * Lets songs from other FNF engines be played as they are, next to the V-Slice ones (nothing of V-Slice is replaced).
+ * Supported: Psych Engine 0.6.3 / 0.7.3 / 1.0.4, P-Slice, Kade Engine and Codename Engine.
  *
- * Put each song in its own folder inside `psych-songs/` (next to the `mods` folder):
+ * Put each song in its own folder inside `fnf-engines/` (next to the `mods` folder):
  *
- *     psych-songs/My Song/my-song.json         (chart, any Psych version; `my-song-hard.json` etc. for other difficulties)
- *     psych-songs/My Song/Inst.ogg
- *     psych-songs/My Song/Voices.ogg           (optional; Psych 0.7+/1.0 `Voices-Player.ogg` and `Voices-Opponent.ogg` work too)
- *     psych-songs/My Song/events.json          (optional, Psych 0.6 / 0.7)
+ *     fnf-engines/My Song/my-song.json         (chart; `my-song-hard.json` etc. for other difficulties)
+ *     fnf-engines/My Song/Inst.ogg
+ *     fnf-engines/My Song/Voices.ogg           (optional; `Voices-Player.ogg` and `Voices-Opponent.ogg` work too)
+ *     fnf-engines/My Song/events.json          (optional, Psych 0.6 / 0.7)
  *
- * The layout of a Psych mod also works: copy its `data` and `songs` folders into a folder of `psych-songs`.
+ * The folder of a Codename Engine song works as it is (`charts/<difficulty>.json`, `meta.json`, `song/Inst.ogg`), and so does
+ * the layout of a Psych Engine mod (`data/<song>/...` and `songs/<song>/...`).
  *
- * On startup the songs are converted into a generated mod (`mods/psych-songs`), which the game loads like any other mod,
+ * On startup the songs are converted into a generated mod (`mods/fnf-engines`), which the game loads like any other mod,
  * so they show up in Freeplay and in the online lobby. Songs that haven't changed are not converted again.
  */
-class PsychSongLibrary
+class FnfEngineLibrary
 {
-  public static inline var SOURCE_FOLDER:String = 'psych-songs';
-  static inline var MOD_ID:String = 'psych-songs';
-  static inline var STAMP_FILE:String = '.psych-stamp';
+  public static inline var SOURCE_FOLDER:String = 'fnf-engines';
+  static inline var MOD_ID:String = 'fnf-engines';
+  static inline var STAMP_FILE:String = '.engine-stamp';
 
   /**
    * Convert every song in `psych-songs/` into the generated mod inside `modRoot`. Never throws.
@@ -56,13 +63,13 @@ class PsychSongLibrary
       var stamp:String = buildStamp();
       var stampPath:String = Path.join([modDir, STAMP_FILE]);
 
-      var songs:Array<PsychSongSource> = findSongs();
+      var songs:Array<EngineSongSource> = findSongs();
       for (song in songs)
         ids.push(song.id);
 
       if (FileSystem.exists(stampPath) && File.getContent(stampPath) == stamp)
       {
-        trace('[PsychSongLibrary] ${ids.length} Psych song(s), already converted.');
+        trace('[FnfEngineLibrary] ${ids.length} engine song(s), already converted.');
         return ids;
       }
 
@@ -76,8 +83,8 @@ class PsychSongLibrary
       }
 
       File.saveContent(Path.join([modDir, '_polymod_meta.json']), haxe.Json.stringify({
-        title: 'Psych Engine songs',
-        description: 'Generated from the psych-songs folder. Do not edit: it is rebuilt when the folder changes.',
+        title: 'FNF Engines songs',
+        description: 'Generated from the fnf-engines folder. Do not edit: it is rebuilt when the folder changes.',
         author: 'Generated',
         api_version: funkin.modding.PolymodHandler.API_VERSION,
         mod_version: '1.0.0',
@@ -85,12 +92,12 @@ class PsychSongLibrary
       }, null, '  '));
       writeLevel(modDir, converted);
       File.saveContent(stampPath, stamp);
-      trace('[PsychSongLibrary] Converted ${converted.length} Psych song(s).');
+      trace('[FnfEngineLibrary] Converted ${converted.length} engine song(s).');
       return converted;
     }
     catch (e:Dynamic)
     {
-      trace('[PsychSongLibrary] Could not prepare the Psych songs: $e');
+      trace('[FnfEngineLibrary] Could not prepare the engine songs: $e');
       return ids;
     }
   }
@@ -112,9 +119,9 @@ class PsychSongLibrary
    * - the layout of a Psych Engine mod, with `data/<song>/<song>.json` and `songs/<song>/Inst.ogg`
    *   (copy the mod's `data` and `songs` folders into a folder of `psych-songs`).
    */
-  static function findSongs():Array<PsychSongSource>
+  static function findSongs():Array<EngineSongSource>
   {
-    var found:Array<PsychSongSource> = [];
+    var found:Array<EngineSongSource> = [];
     var usedIds:Map<String, Bool> = [];
     var stack:Array<String> = [SOURCE_FOLDER];
 
@@ -132,6 +139,40 @@ class PsychSongLibrary
         else if (isChartFile(entry))
           charts.push(path);
       }
+      // Codename Engine: `<song>/charts/<difficulty>.json`, `<song>/meta.json`, `<song>/song/Inst.ogg`.
+      var chartsDir:String = Path.join([dir, 'charts']);
+      if (dir != SOURCE_FOLDER && FileSystem.exists(chartsDir) && FileSystem.isDirectory(chartsDir))
+      {
+        var codenameCharts:Array<String> = [
+          for (file in FileSystem.readDirectory(chartsDir))
+            if (isChartFile(file)) Path.join([chartsDir, file])
+        ];
+        if (codenameCharts.length > 0)
+        {
+          codenameCharts.sort((a, b) -> a < b ? -1 : (a > b ? 1 : 0));
+          var codenameName:String = Path.withoutDirectory(dir);
+          var codenameId:String = songIdFor(codenameName);
+          var codenameUnique:String = codenameId;
+          var codenameCopy:Int = 2;
+          while (usedIds.exists(codenameUnique))
+            codenameUnique = '$codenameId-${codenameCopy++}';
+          usedIds.set(codenameUnique, true);
+
+          var metaPath:String = Path.join([dir, 'meta.json']);
+          found.push({
+            id: codenameUnique,
+            name: codenameName,
+            dir: dir,
+            charts: codenameCharts,
+            audioDirs: [Path.join([dir, 'song']), dir],
+            meta: FileSystem.exists(metaPath) ? File.getContent(metaPath) : null
+          });
+          // Don't also treat `charts/` as a song of its own.
+          stack = stack.filter(p -> p != chartsDir);
+          continue;
+        }
+      }
+
       if (charts.length == 0 || dir == SOURCE_FOLDER) continue;
 
       charts.sort((a, b) -> a < b ? -1 : (a > b ? 1 : 0));
@@ -154,7 +195,7 @@ class PsychSongLibrary
         }
       }
 
-      found.push({id: unique, name: name, dir: dir, charts: charts, audioDirs: audioDirs});
+      found.push({id: unique, name: name, dir: dir, charts: charts, audioDirs: audioDirs, meta: null});
     }
 
     found.sort((a, b) -> a.id < b.id ? -1 : (a.id > b.id ? 1 : 0));
@@ -167,14 +208,14 @@ class PsychSongLibrary
     return StringTools.endsWith(lower, '.json') && lower != 'events.json' && !StringTools.startsWith(lower, '_');
   }
 
-  static function convertSong(song:PsychSongSource, modDir:String):Bool
+  static function convertSong(song:EngineSongSource, modDir:String):Bool
   {
-    var base:Null<PsychImportResult> = null;
-    var all:Array<PsychImportResult> = [];
+    var base:Null<EngineImportResult> = null;
+    var all:Array<EngineImportResult> = [];
 
     for (path in song.charts)
     {
-      var result:Null<PsychImportResult> = PsychEngineImporter.importChart(File.getContent(path), Path.withoutDirectory(path));
+      var result:Null<EngineImportResult> = FnfEngineImporter.importChart(File.getContent(path), Path.withoutDirectory(path), song.meta);
       if (result == null) continue;
       all.push(result);
       if (base == null || result.difficulty == 'normal') base = result;
@@ -182,11 +223,11 @@ class PsychSongLibrary
 
     if (base == null)
     {
-      trace('[PsychSongLibrary] No Psych chart found in "${song.dir}".');
+      trace('[FnfEngineLibrary] No Psych chart found in "${song.dir}".');
       return false;
     }
 
-    trace('[PsychSongLibrary] ${song.name}: ${all.length} chart(s), Psych ${base.sourceFormat} format.');
+    trace('[FnfEngineLibrary] ${song.name}: ${all.length} chart(s), ${base.sourceFormat} format.');
 
     var metadata:SongMetadata = base.metadata;
     var chart:SongChartData = base.chart;
@@ -211,7 +252,7 @@ class PsychSongLibrary
     var eventsFile:String = Path.join([song.dir, 'events.json']);
     if (FileSystem.exists(eventsFile))
     {
-      var extra = PsychEngineImporter.importEventsFile(File.getContent(eventsFile), metadata.timeChanges);
+      var extra = FnfEngineImporter.importEventsFile(File.getContent(eventsFile), metadata.timeChanges);
       if (extra != null)
       {
         chart.events = chart.events.concat(extra.events);
@@ -228,6 +269,7 @@ class PsychSongLibrary
     createDirectories(audioDir);
     for (dir in song.audioDirs)
     {
+      if (!FileSystem.exists(dir) || !FileSystem.isDirectory(dir)) continue;
       for (file in FileSystem.readDirectory(dir))
       {
         var target:Null<String> = audioTargetName(file, metadata.playData.characters.player, metadata.playData.characters.opponent);
@@ -261,9 +303,9 @@ class PsychSongLibrary
   {
     var dir:String = Path.join([modDir, 'data', 'levels']);
     createDirectories(dir);
-    File.saveContent(Path.join([dir, 'psychsongs.json']), haxe.Json.stringify({
+    File.saveContent(Path.join([dir, 'fnfengines.json']), haxe.Json.stringify({
       version: '1.0.0',
-      name: 'PSYCH ENGINE',
+      name: 'FNF ENGINES',
       titleAsset: 'storymenu/titles/tutorial',
       props: [],
       background: '#4B3F72',
@@ -277,7 +319,7 @@ class PsychSongLibrary
    */
   static function buildStamp():String
   {
-    var parts:Array<String> = ['v2'];
+    var parts:Array<String> = ['v3'];
     var stack:Array<String> = [SOURCE_FOLDER];
     while (stack.length > 0)
     {

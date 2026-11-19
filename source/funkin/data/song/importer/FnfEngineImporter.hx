@@ -8,9 +8,9 @@ import funkin.data.song.SongData.SongNoteData;
 import funkin.data.song.SongData.SongTimeChange;
 
 /**
- * Everything that came out of reading a Psych Engine chart.
+ * Everything that came out of reading a chart from another FNF engine.
  */
-typedef PsychImportResult =
+typedef EngineImportResult =
 {
   /**
    * The song's metadata (name, BPM changes, characters, stage).
@@ -28,12 +28,12 @@ typedef PsychImportResult =
   var difficulty:String;
 
   /**
-   * Which Psych Engine generation the chart was written by: `0.6` (and older), `0.7` or `1.0`.
+   * Which engine and version wrote the chart, e.g. `Psych 0.6 / Kade`, `Psych 1.0` or `Codename`.
    */
   var sourceFormat:String;
 
   /**
-   * Names of Psych events that have no V-Slice equivalent and were left out (each name once).
+   * Names of events that have no V-Slice equivalent and were left out (each name once).
    */
   var skippedEvents:Array<String>;
 
@@ -44,16 +44,18 @@ typedef PsychImportResult =
 }
 
 /**
- * Imports charts made for Psych Engine, any version:
+ * Imports charts made for other FNF engines and converts them to V-Slice. Based on the logic of Chart Converter
+ * (https://github.com/panchitomanriquezxdxd/ChartConverter), which does the same outside of the game.
  *
- * - 0.2 / 0.3: `{"song": {...}}`, events may be notes with a negative lane, or in a separate `events.json` (not read).
- * - 0.4 to 0.7: `{"song": {...}}` with `events: [[time, [[name, value1, value2], ...]], ...]`, note types as strings.
- * - 1.0 (`"format": "psych_v1"`): the same fields at the root, with no `song` wrapper.
+ * - Psych Engine 0.6.3 / Kade Engine / older: `{"song": {...}}`, lanes relative to `mustHitSection`.
+ * - Psych Engine 0.7.3: the same, events may also be written inside `sectionNotes`.
+ * - Psych Engine 1.0.4 / P-Slice (`"format": "psych_v1"`): fields at the root, absolute lanes.
+ * - Codename Engine: `strumLines` / `events`, with the BPM and difficulties in `meta.json`.
  *
  * The JSON is read as plain dynamic data, so unexpected or missing fields don't make the import fail.
  */
 @:nullSafety
-class PsychEngineImporter
+class FnfEngineImporter
 {
   static final STRUMLINE_SIZE:Int = 4;
 
@@ -78,20 +80,21 @@ class PsychEngineImporter
   ];
 
   /**
-   * Whether a parsed JSON value looks like a Psych Engine chart.
+   * Whether a parsed JSON value looks like a chart of a supported engine.
    */
-  public static function isPsychChart(root:Null<Dynamic>):Bool
+  public static function isEngineChart(root:Null<Dynamic>):Bool
   {
-    return songObject(root) != null;
+    return songObject(root) != null || codenameObject(root) != null;
   }
 
   /**
    * Read a chart file.
    * @param content The JSON text.
    * @param fileName The file's name, used for the song name and difficulty when the chart doesn't say (`bopeebo-hard.json`).
-   * @return The imported song, or `null` if it isn't a Psych chart.
+   * @param metaContent Codename Engine keeps the BPM, name and difficulties in a separate `meta.json`: its text, if any.
+   * @return The imported song, or `null` if it isn't a chart of a supported engine.
    */
-  public static function importChart(content:String, fileName:String = 'import.json'):Null<PsychImportResult>
+  public static function importChart(content:String, fileName:String = 'import.json', ?metaContent:String):Null<EngineImportResult>
   {
     var root:Null<Dynamic> = null;
     try
@@ -100,15 +103,19 @@ class PsychEngineImporter
     }
     catch (e:Dynamic)
     {
-      trace('[PsychEngineImporter] Invalid JSON in $fileName: $e');
+      trace('[FnfEngineImporter] Invalid JSON in $fileName: $e');
       return null;
     }
+
+    var codename:Null<Dynamic> = codenameObject(root);
+    if (codename != null) return importCodename(codename, fileName, metaContent);
 
     var song:Null<Dynamic> = songObject(root);
     if (song == null) return null;
 
     var baseName:String = fileNameWithoutExtension(fileName);
     var difficulty:String = difficultyFromFileName(baseName);
+    var absoluteLanes:Bool = usesAbsoluteLanes(root, song);
     var songName:String = str(song.song) ?? str(song.songId) ?? songNameFromFileName(baseName);
 
     var sections:Array<Dynamic> = array(song.notes);
@@ -134,6 +141,15 @@ class PsychEngineImporter
         if (note.length < 2) continue;
 
         var time:Null<Float> = num(note[0]);
+
+        // Psych 0.7+ can write events inside the notes: [time, "Name", value1, value2].
+        if (time != null && Std.isOfType(note[1], String))
+        {
+          addPsychEvent(time, stringify(note[1]), stringify(note.length > 2 ? note[2] : ''), stringify(note.length > 3 ? note[3] : ''), events, skippedEvents,
+            timeChanges);
+          continue;
+        }
+
         var lane:Null<Float> = num(note[1]);
         if (time == null || lane == null) continue;
 
@@ -162,12 +178,15 @@ class PsychEngineImporter
         }
 
         var laneIndex:Int = Std.int(lane) % (STRUMLINE_SIZE * 2);
-        // Lanes 0-3 belong to the side that must hit the section: swap them when that is the opponent.
-        var singsInThisSection:Bool = laneIndex < STRUMLINE_SIZE;
-        if (sectionAlt && singsInThisSection && kind == '') kind = 'alt';
 
+        // Older charts: lanes 0-3 belong to the side that must hit the section, so swap them when that is the opponent.
+        // `psych_v1` charts: the lanes are absolute (0-3 player, 4-7 opponent).
         var data:Int = laneIndex;
-        if (!mustHit) data = laneIndex >= STRUMLINE_SIZE ? laneIndex - STRUMLINE_SIZE : laneIndex + STRUMLINE_SIZE;
+        if (!absoluteLanes && !mustHit) data = laneIndex >= STRUMLINE_SIZE ? laneIndex - STRUMLINE_SIZE : laneIndex + STRUMLINE_SIZE;
+
+        // `altAnim` of a section applies to the character that sings it.
+        var singsInThisSection:Bool = (data < STRUMLINE_SIZE) == mustHit;
+        if (sectionAlt && singsInThisSection && kind == '') kind = 'alt';
 
         notes.push(new SongNoteData(time, data, Math.max(0, num(note.length > 2 ? note[2] : 0) ?? 0), kind));
       }
@@ -186,7 +205,7 @@ class PsychEngineImporter
     var chart:SongChartData = new SongChartData([difficulty => speed], events, [difficulty => notes]);
 
     var metadata:SongMetadata = new SongMetadata(songName, Constants.DEFAULT_ARTIST, Constants.DEFAULT_CHARTER, Constants.DEFAULT_VARIATION);
-    metadata.generatedBy = 'Chart Editor Import (Psych Engine)';
+    metadata.generatedBy = 'Chart Editor Import (FNF Engines)';
     metadata.timeChanges = timeChanges;
     metadata.playData.difficulties = [difficulty];
     metadata.playData.songVariations = [];
@@ -198,7 +217,7 @@ class PsychEngineImporter
       metadata: metadata,
       chart: chart,
       difficulty: difficulty,
-      sourceFormat: detectFormat(root, song, sections),
+      sourceFormat: 'Psych ' + detectFormat(root, song, sections) + (detectFormat(root, song, sections) == '0.6' ? ' / Kade' : ''),
       skippedEvents: skippedEvents,
       skippedNoteTypes: skippedTypes
     };
@@ -207,6 +226,194 @@ class PsychEngineImporter
   // ---------------------------------------------------------------------------------------------------------------
   // Structure
   // ---------------------------------------------------------------------------------------------------------------
+
+
+  /**
+   * `psych_v1` charts (Psych 0.7+/1.0, P-Slice) use absolute lanes. `psych_v1_convert` (a half-way format) and charts with no
+   * `format` still use lanes relative to `mustHitSection`.
+   */
+  static function usesAbsoluteLanes(root:Dynamic, song:Dynamic):Bool
+  {
+    var format:Null<String> = str(Reflect.field(song, 'format')) ?? str(Reflect.field(root, 'format'));
+    if (format == null) return false;
+    var normalized:String = ~/[^a-z0-9]/g.replace(format.toLowerCase(), '');
+    return StringTools.startsWith(normalized, 'psychv1') && normalized.indexOf('convert') < 0;
+  }
+
+  /**
+   * The Codename Engine chart object (`strumLines`), at the root or inside `song`.
+   */
+  static function codenameObject(root:Null<Dynamic>):Null<Dynamic>
+  {
+    if (root == null || !Reflect.isObject(root)) return null;
+    if (Std.isOfType(Reflect.field(root, 'strumLines'), Array)) return root;
+
+    var wrapped:Null<Dynamic> = Reflect.field(root, 'song');
+    if (wrapped != null && Reflect.isObject(wrapped) && !Std.isOfType(wrapped, String) && Std.isOfType(Reflect.field(wrapped, 'strumLines'), Array)) return wrapped;
+
+    return null;
+  }
+
+  /**
+   * Codename Engine: one file per difficulty, strumlines typed 0 opponent / 1 player / 2 girlfriend.
+   */
+  static function importCodename(chart:Dynamic, fileName:String, metaContent:Null<String>):Null<EngineImportResult>
+  {
+    var meta:Null<Dynamic> = null;
+    if (metaContent != null)
+    {
+      try
+      {
+        meta = haxe.Json.parse(cleanJson(metaContent));
+      }
+      catch (e:Dynamic) {}
+    }
+    if (meta == null || !Reflect.isObject(meta)) meta = Reflect.field(chart, 'meta');
+    if (meta == null || !Reflect.isObject(meta)) meta = {};
+
+    var baseName:String = fileNameWithoutExtension(fileName);
+    // Codename difficulties can have any name: the file name is the difficulty.
+    var difficulty:String = baseName.toLowerCase();
+    if (difficulty == '' || difficulty == 'import') difficulty = 'normal';
+
+    var strumLines:Array<Dynamic> = array(chart.strumLines);
+    var noteTypes:Array<Dynamic> = array(chart.noteTypes);
+    var baseBpm:Float = positive(num(Reflect.field(meta, 'bpm'))) ?? Constants.DEFAULT_BPM;
+
+    var notes:Array<SongNoteData> = [];
+    var skippedEvents:Array<String> = [];
+    var skippedTypes:Int = 0;
+    var skippedGfNotes:Int = 0;
+
+    function lineOfType(type:Int):Null<Dynamic>
+    {
+      for (line in strumLines)
+        if (num(line.type) == type) return line;
+      return null;
+    }
+
+    function characterOf(type:Int, fallback:String):String
+    {
+      var line:Null<Dynamic> = lineOfType(type);
+      var characters:Array<Dynamic> = line == null ? [] : array(line.characters);
+      return characters.length > 0 ? (str(characters[0]) ?? fallback) : fallback;
+    }
+
+    for (line in strumLines)
+    {
+      var type:Int = Std.int(num(line.type) ?? 0);
+      if (type == 2)
+      {
+        skippedGfNotes += array(line.notes).length;
+        continue;
+      }
+
+      var baseLane:Int = type == 1 ? 0 : STRUMLINE_SIZE; // Player 0-3, opponent 4-7.
+      for (raw in array(line.notes))
+      {
+        var time:Null<Float> = num(raw.time);
+        if (time == null) continue;
+
+        var id:Int = Std.int(num(raw.id) ?? 0);
+        var lane:Int = baseLane + (((id % STRUMLINE_SIZE) + STRUMLINE_SIZE) % STRUMLINE_SIZE);
+        var noteType:Int = Std.int(num(raw.type) ?? 0);
+        if (noteType > 0) skippedTypes++;
+
+        notes.push(new SongNoteData(time, lane, Math.max(0, num(raw.sLen) ?? 0), ''));
+      }
+    }
+    notes.sort((a, b) -> a.time < b.time ? -1 : (a.time > b.time ? 1 : 0));
+    if (skippedGfNotes > 0) skippedEvents.push('Girlfriend strumline ($skippedGfNotes notes)');
+
+    var events:Array<SongEventData> = [];
+    var timeChanges:Array<SongTimeChange> = [new SongTimeChange(0, baseBpm)];
+    var bpmChanges:Array<{time:Float, bpm:Float}> = [];
+
+    for (raw in array(chart.events))
+    {
+      var name:String = (str(raw.name) ?? '').toLowerCase();
+      var params:Array<Dynamic> = array(raw.params);
+      var time:Float = num(raw.time) ?? 0;
+
+      switch (name)
+      {
+        case 'camera movement':
+          // The parameter is the INDEX of the target strumline: look up what kind it is.
+          var index:Int = Std.int(num(params[0]) ?? 0);
+          var target:Null<Dynamic> = index >= 0 && index < strumLines.length ? strumLines[index] : null;
+          var kind:Int = target != null ? Std.int(num(target.type) ?? 0) : (index == 1 ? 1 : 0);
+          events.push(new SongEventData(time, 'FocusCamera', {char: kind == 1 ? 0 : (kind == 2 ? 2 : 1)}));
+
+        case 'camera zoom':
+          // [tween?, zoom, camera, duration, ease, type, mode]
+          var zoom:Float = num(params[1]) ?? 1.4;
+          events.push(new SongEventData(time, 'ZoomCamera', {zoom: zoom, duration: 4.0, mode: str(params[6]) == 'stage' ? 'stage' : 'direct', ease: 'expoInOut'}));
+
+        case 'add camera zoom':
+          events.push(new SongEventData(time, 'ZoomCamera', {
+            zoom: Math.round((1.0 + (num(params[0]) ?? 0.015)) * 10000) / 10000,
+            duration: 4.0,
+            mode: 'stage',
+            ease: 'expoInOut'
+          }));
+
+        case 'bpm change':
+          var bpm:Null<Float> = positive(num(params[0]));
+          if (bpm != null) bpmChanges.push({time: time, bpm: bpm});
+
+        default:
+          var original:String = str(raw.name) ?? '';
+          if (original != '' && skippedEvents.indexOf(original) == -1) skippedEvents.push(original);
+      }
+    }
+
+    bpmChanges.sort((a, b) -> a.time < b.time ? -1 : (a.time > b.time ? 1 : 0));
+    for (change in bpmChanges)
+      timeChanges.push(new SongTimeChange(change.time, change.bpm));
+    events.sort((a, b) -> a.time < b.time ? -1 : (a.time > b.time ? 1 : 0));
+
+    var songName:String = str(Reflect.field(meta, 'displayName')) ?? str(Reflect.field(meta, 'name')) ?? songNameFromFileName(baseName);
+    var speed:Float = positive(num(chart.scrollSpeed)) ?? 1.0;
+
+    var metadata:SongMetadata = new SongMetadata(songName, Constants.DEFAULT_ARTIST, Constants.DEFAULT_CHARTER, Constants.DEFAULT_VARIATION);
+    metadata.generatedBy = 'Chart Editor Import (FNF Engines)';
+    metadata.timeChanges = timeChanges;
+    metadata.playData.difficulties = [difficulty];
+    metadata.playData.songVariations = [];
+    metadata.playData.stage = convertStage(str(chart.stage));
+    metadata.playData.characters = new SongCharacterData(characterOf(1, 'bf'), characterOf(2, 'gf'), characterOf(0, 'dad'));
+
+    return {
+      metadata: metadata,
+      chart: new SongChartData([difficulty => speed], events, [difficulty => notes]),
+      difficulty: difficulty,
+      sourceFormat: 'Codename',
+      skippedEvents: skippedEvents,
+      skippedNoteTypes: skippedTypes
+    };
+  }
+
+  /**
+   * The difficulties a Codename Engine `meta.json` lists, if any.
+   */
+  public static function codenameDifficulties(metaContent:String):Array<String>
+  {
+    try
+    {
+      var meta:Dynamic = haxe.Json.parse(cleanJson(metaContent));
+      var result:Array<String> = [];
+      for (d in array(Reflect.field(meta, 'difficulties')))
+      {
+        var name:Null<String> = str(d);
+        if (name != null) result.push(name.toLowerCase());
+      }
+      return result;
+    }
+    catch (e:Dynamic)
+    {
+      return [];
+    }
+  }
 
   /**
    * The object holding the chart: `song` in older versions, the root itself in `psych_v1`.
@@ -467,7 +674,21 @@ class PsychEngineImporter
         }));
 
       default:
-        if (name != '' && skipped.indexOf(name) == -1) skipped.push(name);
+        var key:String = ~/[^a-z]/g.replace(name.toLowerCase(), '');
+        if (key == 'focuscamera')
+        {
+          var target:Null<Int> = Std.parseInt(value1);
+          events.push(new SongEventData(time, 'FocusCamera', {char: target == 0 ? 0 : (target == 2 ? 2 : 1)}));
+        }
+        else if (key.indexOf('zoom') >= 0)
+        {
+          // "Add Camera Zoom" adds to the zoom (0.015 by default); other zoom events hold the zoom itself.
+          var amount:Float = Std.parseFloat(value1);
+          var zoom:Float = key == 'addcamerazoom' ? 1.0 + (Math.isNaN(amount) ? 0.015 : amount) : (Math.isNaN(amount) ? 1.0 : amount);
+          events.push(new SongEventData(time, 'ZoomCamera', {zoom: Math.round(zoom * 10000) / 10000, duration: 4.0, mode: 'stage', ease: 'expoInOut'}));
+        }
+        else if (name != '' && skipped.indexOf(name) == -1)
+          skipped.push(name);
     }
   }
 
