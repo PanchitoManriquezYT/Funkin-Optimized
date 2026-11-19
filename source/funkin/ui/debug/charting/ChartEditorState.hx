@@ -6222,6 +6222,7 @@ class ChartEditorState extends UIState // UIState derives from MusicBeatState
   @:nullSafety(Off)
   function quitChartEditor(exitPrompt:Bool = false):Void
   {
+    funkin.util.logging.SessionTrace.mark('editor: quit requested');
     if (saveDataDirty && exitPrompt)
     {
       this.openLeaveConfirmationDialog();
@@ -6665,6 +6666,7 @@ class ChartEditorState extends UIState // UIState derives from MusicBeatState
 
     // One-shot: these used to stay registered after the playtest and ran again on any later substate close,
     // resetting the cameras (and destroying the live UI camera) at the wrong moment.
+    funkin.util.logging.SessionTrace.mark('playtest: starting');
     subStateClosed.addOnce(reviveUICamera);
     subStateClosed.addOnce(resetConductorAfterTest);
 
@@ -6807,6 +6809,7 @@ class ChartEditorState extends UIState // UIState derives from MusicBeatState
    */
   function reviveUICamera(?_:FlxSubState):Void
   {
+    funkin.util.logging.SessionTrace.mark('playtest end: reviveUICamera begin');
     // `cameras.reset` destroys every camera first, including this one if it's already in the list.
     if (!FlxG.cameras.list.contains(uiCamera))
     {
@@ -6816,6 +6819,7 @@ class ChartEditorState extends UIState // UIState derives from MusicBeatState
     uiCamera.onResize();
 
     if (!members.contains(this.root)) add(this.root);
+    funkin.util.logging.SessionTrace.mark('playtest end: reviveUICamera done');
   }
 
   /**
@@ -7148,6 +7152,7 @@ class ChartEditorState extends UIState // UIState derives from MusicBeatState
   @:nullSafety(Off)
   function resetConductorAfterTest(?_:FlxSubState):Void
   {
+    funkin.util.logging.SessionTrace.mark('playtest end: resetConductorAfterTest begin');
     this.persistentUpdate = true;
     this.persistentDraw = true;
 
@@ -7173,8 +7178,10 @@ class ChartEditorState extends UIState // UIState derives from MusicBeatState
       #end
     }
 
+    funkin.util.logging.SessionTrace.mark('playtest end: moveSongToScrollPosition');
     moveSongToScrollPosition();
 
+    funkin.util.logging.SessionTrace.mark('playtest end: welcome music');
     fadeInWelcomeMusic(WELCOME_MUSIC_FADE_IN_DELAY, WELCOME_MUSIC_FADE_IN_DURATION);
 
     Cursor.show();
@@ -7498,6 +7505,7 @@ class ChartEditorState extends UIState // UIState derives from MusicBeatState
         // never seek to the exact end (that is out of range for some backends, and it killed the app on phones).
         haxe.ui.Toolkit.callLater(function()
         {
+          funkin.util.logging.SessionTrace.mark('editor: song ended');
           try
           {
             if (audioInstTrack != null && audioInstTrack.exists)

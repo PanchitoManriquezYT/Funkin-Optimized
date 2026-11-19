@@ -2016,6 +2016,7 @@ class PlayState extends MusicBeatSubState
 
     performCleanup();
 
+    funkin.util.logging.SessionTrace.mark('PlayState.destroy: super.destroy');
     #if mobile
     // Syncing allowScreenTimeout with Preferences option.
     lime.system.System.allowScreenTimeout = Preferences.screenTimeout;
@@ -2026,6 +2027,7 @@ class PlayState extends MusicBeatSubState
     #end
 
     super.destroy();
+    funkin.util.logging.SessionTrace.mark('PlayState.destroy done');
   }
 
   override public function initConsoleHelpers():Void
@@ -3669,6 +3671,7 @@ class PlayState extends MusicBeatSubState
      */
   public function endSong(rightGoddamnNow:Bool = false):Void
   {
+    funkin.util.logging.SessionTrace.mark('PlayState.endSong (charting=${isChartingMode})');
     if (FlxG.sound.music != null) FlxG.sound.music.volume = 0;
     if (vocals != null) vocals.volume = 0;
     mayPauseGame = false;
@@ -3959,6 +3962,7 @@ class PlayState extends MusicBeatSubState
      */
   function performCleanup():Void
   {
+    funkin.util.logging.SessionTrace.mark('PlayState.performCleanup begin (charting=${isChartingMode})');
     // If the camera is being tweened, stop it.
     cancelAllCameraTweens();
 
@@ -4021,6 +4025,7 @@ class PlayState extends MusicBeatSubState
 
     // Clear the static reference to this state.
     instance = null;
+    funkin.util.logging.SessionTrace.mark('PlayState.performCleanup done');
   }
 
   /**

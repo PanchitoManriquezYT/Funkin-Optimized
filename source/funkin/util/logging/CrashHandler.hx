@@ -120,15 +120,8 @@ class CrashHandler
 
   static function logErrorMessage(message:String, critical:Bool = false):Void
   {
+    // On phones the working directory is the app's data folder (the one "Open Data Folder" shows), so this is visible to the user.
     var folder:String = LOG_FOLDER;
-    #if mobile
-    // The working directory of a phone app is not writable: use the app's own storage, so the log really exists.
-    try
-    {
-      folder = haxe.io.Path.join([lime.system.System.applicationStorageDirectory, LOG_FOLDER]);
-    }
-    catch (e:Dynamic) {}
-    #end
     FileUtil.createDirIfNotExists(folder);
 
     sys.io.File.saveContent('$folder/crash${critical ? '-critical' : ''}-${DateUtil.generateTimestamp()}.log', buildCrashReport(message));
