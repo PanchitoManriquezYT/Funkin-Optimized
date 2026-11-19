@@ -197,6 +197,7 @@ class Preferences
     var save:Save = Save.instance;
     save.options.shaders = value;
     Save.system.flush();
+    cachedUseShaders = null;
     return value;
   }
 
@@ -267,8 +268,13 @@ class Preferences
 
   static function get_useShaders():Bool
   {
-    return shaders && !lowQuality;
+    // Read on every draw call, so the value is kept instead of going through the save each time.
+    if (cachedUseShaders == null) cachedUseShaders = shaders && !lowQuality;
+    return cachedUseShaders;
   }
+
+  static var cachedUseShaders:Null<Bool> = null;
+  static var cachedUseAntialiasing:Null<Bool> = null;
 
   /**
    * Whether sprites are really smoothed: the setting, unless Low Quality is on.
@@ -277,7 +283,8 @@ class Preferences
 
   static function get_useAntialiasing():Bool
   {
-    return antialiasing && !lowQuality;
+    if (cachedUseAntialiasing == null) cachedUseAntialiasing = antialiasing && !lowQuality;
+    return cachedUseAntialiasing;
   }
 
   /**
@@ -285,6 +292,8 @@ class Preferences
    */
   public static function applyAntialiasing():Void
   {
+    cachedUseShaders = null;
+    cachedUseAntialiasing = null;
     flixel.FlxSprite.defaultAntialiasing = useAntialiasing;
   }
 

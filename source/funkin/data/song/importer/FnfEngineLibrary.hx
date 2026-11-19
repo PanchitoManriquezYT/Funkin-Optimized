@@ -57,9 +57,17 @@ class FnfEngineLibrary
     var ids:Array<String> = [];
     try
     {
-      if (!FileSystem.exists(SOURCE_FOLDER) || !FileSystem.isDirectory(SOURCE_FOLDER)) return ids;
-
       var modDir:String = Path.join([modRoot, MOD_ID]);
+
+      // The generated mod of the previous version (Psych-only) used another folder and would duplicate the songs.
+      removeGenerated(Path.join([modRoot, 'psych-songs']), '.psych-stamp');
+
+      if (!FileSystem.exists(SOURCE_FOLDER) || !FileSystem.isDirectory(SOURCE_FOLDER))
+      {
+        // Nothing to convert: don't leave the songs of a folder that was deleted.
+        removeGenerated(modDir, STAMP_FILE);
+        return ids;
+      }
       var stamp:String = buildStamp();
       var stampPath:String = Path.join([modDir, STAMP_FILE]);
 
@@ -74,6 +82,8 @@ class FnfEngineLibrary
       }
 
       FileSystem.createDirectory(modRoot);
+      // Start clean, so songs that were removed from the folder don't stay in the game.
+      removeGenerated(modDir, STAMP_FILE);
       createDirectories(modDir);
 
       var converted:Array<String> = [];
@@ -336,6 +346,28 @@ class FnfEngineLibrary
       }
     }
     return parts.join('|');
+  }
+
+  /**
+   * Delete a generated mod folder. Only folders that carry our stamp file are touched, never a mod made by hand.
+   */
+  static function removeGenerated(dir:String, stampFile:String):Void
+  {
+    if (!FileSystem.exists(dir) || !FileSystem.isDirectory(dir)) return;
+    if (!FileSystem.exists(Path.join([dir, stampFile]))) return;
+    deleteRecursively(dir);
+  }
+
+  static function deleteRecursively(path:String):Void
+  {
+    if (FileSystem.isDirectory(path))
+    {
+      for (entry in FileSystem.readDirectory(path))
+        deleteRecursively(Path.join([path, entry]));
+      FileSystem.deleteDirectory(path);
+    }
+    else
+      FileSystem.deleteFile(path);
   }
 
   static function createDirectories(path:String):Void
