@@ -39,7 +39,7 @@ jobs:
         # Always the universal APK (one file with both ABIs, installs on any ARM Android device) and the TV Box APK
         # (same ABIs, built with -DTV_BOX: PNG textures, no video, for Android TV / TV Box).
         # The single-architecture APKs are only built when asked for (`all_apks`).
-        include: ${{ fromJSON(github.event.inputs.all_apks == 'true' && '[{"name":"universal","arch_flags":"-armv7 -arm64","extra_flags":""},{"name":"tvbox","arch_flags":"-armv7 -arm64","extra_flags":"-DTV_BOX"},{"name":"armeabi-v7a","arch_flags":"-armv7","extra_flags":""},{"name":"arm64","arch_flags":"-arm64","extra_flags":""}]' || '[{"name":"universal","arch_flags":"-armv7 -arm64","extra_flags":""},{"name":"tvbox","arch_flags":"-armv7 -arm64","extra_flags":"-DTV_BOX"}]') }}
+        include: ${{ fromJSON(github.event.inputs.all_apks == 'true' && '[{"name":"universal","arch_flags":"-armv7 -arm64","extra_flags":""},{"name":"tvbox","arch_flags":"-armv7 -arm64","extra_flags":"-DTV_BOX"},{"name":"tvbox-16bit","arch_flags":"-armv7 -arm64","extra_flags":"-DTV_BOX -DTV_BOX_16BIT"},{"name":"armeabi-v7a","arch_flags":"-armv7","extra_flags":""},{"name":"arm64","arch_flags":"-arm64","extra_flags":""}]' || '[{"name":"universal","arch_flags":"-armv7 -arm64","extra_flags":""},{"name":"tvbox","arch_flags":"-armv7 -arm64","extra_flags":"-DTV_BOX"},{"name":"tvbox-16bit","arch_flags":"-armv7 -arm64","extra_flags":"-DTV_BOX -DTV_BOX_16BIT"}]') }}
 
     steps:
       - name: Checkout
@@ -224,7 +224,7 @@ jobs:
           READELF="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf"
 
           case "${{ matrix.name }}" in
-            universal|tvbox) want="arm64-v8a armeabi-v7a" ;;
+            universal|tvbox|tvbox-16bit) want="arm64-v8a armeabi-v7a" ;;
             armeabi-v7a) want="armeabi-v7a" ;;
             arm64)       want="arm64-v8a" ;;
             *) echo "Unknown matrix entry"; exit 1 ;;
@@ -398,7 +398,8 @@ jobs:
             --notes "Automatic build of \`${BRANCH}\` at ${GITHUB_SHA::7}.
 
           - **Android**: install \`Funkin-0.8.7-universal.apk\` on any ARM phone. The \`armeabi-v7a\` and \`arm64\` files are single-architecture versions.
-          - **Android TV / TV Box**: install \`Funkin-0.8.7-tvbox.apk\` (PNG textures, video cutscenes disabled).
+          - **Android TV / TV Box**: install \`Funkin-0.8.7-tvbox.apk\` (PNG textures, video cutscenes disabled). If it closes with an EGL error, try \`Funkin-0.8.7-tvbox-16bit.apk\` (16-bit color).
           - **Windows**: extract \`Funkin-0.8.7-windows-x64.zip\` and run \`Funkin087.exe\`.
 
           The APKs are signed with a throwaway CI key: uninstall a previous build signed with another key before installing."
+          
